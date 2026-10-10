@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>phoU 프로토타입</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #FAFBFF; --main: #2F45E8; --main-soft: #E9ECFF; --sub: #FFC83D; --sub-soft: #FFF6DC;
+    --ink: #181B33; --ink-2: #5D6283; --ink-3: #9AA0BD; --line: #E3E6F3; --tile: #E8EBF6; --surface: #FFFFFF;
+    --radius-l: 20px; --radius-m: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    box-sizing: border-box;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { margin: 0; height: 100%; }
+  body { background: #EEF0F8; font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 16px; min-height: 100%; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2.5px solid var(--main); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- 시연 컨트롤 (프로토타입 전용) ---------- */
+  .demo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 13px; color: var(--ink-2); max-width: 760px; }
+  .demo select { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; font-size: 13px; }
+  .demo-group { display: flex; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; flex-wrap: wrap; }
+  .demo-group button { border: 0; background: none; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .demo-group button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  /* ---------- 폰 ---------- */
+  .phone { width: 390px; max-width: 100%; height: 800px; max-height: calc(100vh - 100px); min-height: 640px;
+    background: var(--bg); border-radius: 36px; border: 1px solid var(--line); overflow: hidden; position: relative; }
+  @media (max-width: 480px) {
+    body { padding: 10px 0 0; gap: 8px; background: var(--bg); }
+    .phone { border-radius: 0; border: 0; height: auto; max-height: none; flex: 1; min-height: 0; }
+  }
+  .view { position: absolute; inset: 0; display: none; flex-direction: column; background: var(--bg); }
+  .view.active { display: flex; animation: enter .28s cubic-bezier(.2,.8,.2,1); }
+  @keyframes enter { from { opacity: 0; transform: translateX(14px); } }
+
+  .appbar { display: flex; align-items: center; gap: 4px; padding: 14px 12px 8px; min-height: 60px; }
+  .appbar h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -0.02em; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .appbar .step { font-size: 13px; color: var(--ink-3); padding-right: 10px; }
+  .icon-btn { width: 40px; height: 40px; border: 0; background: none; border-radius: 50%; cursor: pointer; display: grid; place-items: center; color: var(--ink); position: relative; flex: none; }
+  .icon-btn:hover { background: var(--main-soft); }
+  .scroll { flex: 1; overflow-y: auto; padding: 4px 20px 120px; }
+  .scroll.tabs-pad { padding-bottom: 100px; }
+
+  /* 웹 화면 표시 (참여자는 앱 설치 없이 웹) */
+  .webbar { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px 8px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
+  .webbar span { background: var(--bg); border-radius: 8px; padding: 6px 12px; display: inline-flex; gap: 6px; align-items: center; }
+
+  .sec-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 8px; }
+  .sec-head h2 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+  .sec-head .meta { font-size: 12.5px; color: var(--ink-3); text-align: right; }
+  section { margin-bottom: 28px; }
+  .lead { font-size: 24px; line-height: 1.35; font-weight: 800; letter-spacing: -0.035em; margin: 8px 0 6px; }
+  .lead-sub { font-size: 14px; color: var(--ink-2); line-height: 1.55; margin: 0 0 24px; }
+  .note { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; margin: 8px 2px 0; }
+  .card { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius-l); }
+
+  .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 20px 20px; background: var(--bg); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  .hint { font-size: 12.5px; color: var(--ink-2); text-align: center; margin: 0; min-height: 18px; }
+  .btn { width: 100%; border: 0; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; background: var(--main); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn:disabled { background: var(--line); color: var(--ink-3); cursor: not-allowed; }
+  .btn.ghost { background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); }
+  .btn.small { padding: 11px 14px; font-size: 14px; border-radius: 11px; width: auto; }
+  .link-btn { border: 0; background: none; color: var(--ink-2); font-size: 13.5px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 6px; }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+  .chip:hover { border-color: var(--main); color: var(--main); }
+  .chip[aria-pressed="true"] { background: var(--main); border-color: var(--main); color: #fff; }
+
+  .pill { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.live { background: var(--sub); color: var(--ink); }
+  .pill.soon { background: var(--main-soft); color: var(--main); }
+  .pill.done { background: var(--tile); color: var(--ink-2); }
+  .pill.new { background: var(--ink); color: #fff; }
+
+  .av { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; border: 2px solid var(--surface); margin-left: -7px; }
+  .av:first-child { margin-left: 0; }
+  .av.c0 { background: var(--main-soft); color: var(--main); } .av.c1 { background: var(--sub-soft); color: #8A6400; } .av.c2 { background: var(--tile); color: var(--ink-2); }
+  .stack { display: inline-flex; }
+
+  .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .8s linear infinite; flex: none; }
+  .spinner.dark { border-color: var(--line); border-top-color: var(--main); }
+  .skeleton { display: none; padding: 4px 20px; }
+  .view.loading > .skeleton { display: block; }
+  .view.loading > .scroll, .view.loading > .bottom { display: none; }
+  .sk { background: var(--tile); border-radius: 10px; animation: pulse 1.2s ease-in-out infinite; }
+  .sk + .sk { margin-top: 10px; }
+  .sk-gap { height: 26px; }
+  .loading-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); margin: 20px 0 0; }
+
+  /* 스위치 / 옵션 */
+  .options .opt { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+  .options .opt + .opt { border-top: 1px solid var(--line); }
+  .opt-ico { width: 38px; height: 38px; border-radius: 11px; background: var(--bg); display: grid; place-items: center; flex: none; color: var(--ink-2); }
+  .opt.on .opt-ico { background: var(--main-soft); color: var(--main); }
+  .opt-txt { flex: 1; min-width: 0; }
+  .opt-txt b { display: block; font-size: 15px; font-weight: 600; }
+  .opt-txt small { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; line-height: 1.4; }
+  .switch { width: 46px; height: 28px; border-radius: 999px; background: var(--line); border: 0; position: relative; flex: none; cursor: pointer; padding: 0; transition: background .2s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(24,27,51,.18); transition: transform .2s; }
+  .switch[aria-checked="true"] { background: var(--main); }
+  .switch[aria-checked="true"]::after { transform: translateX(18px); }
+
+  /* 정보 행 */
+  .rows .row { display: flex; justify-content: space-between; gap: 12px; padding: 13px 16px; font-size: 14px; }
+  .rows .row + .row { border-top: 1px solid var(--line); }
+  .rows .row span:first-child { color: var(--ink-2); flex: none; }
+  .rows .row span:last-child { font-weight: 600; text-align: right; }
+  .lock-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-3); padding: 12px 16px 0; }
+
+  /* =================== 홈 =================== */
+  .home-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px 20px; }
+  .wordmark { font-size: 22px; font-weight: 800; letter-spacing: -0.05em; color: var(--main); margin: 0; }
+  .dot { position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--sub); border: 2px solid var(--bg); }
+  .hello { font-size: 23px; line-height: 1.38; font-weight: 800; letter-spacing: -0.035em; margin: 10px 0 18px; }
+  .hero { width: 100%; border: 0; text-align: left; cursor: pointer; background: var(--main); color: #fff; border-radius: 24px; padding: 22px 20px 20px;
+    display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; margin-bottom: 28px; position: relative; overflow: hidden; }
+  .hero:active { transform: scale(.985); }
+  .hero-frame { position: absolute; right: -26px; top: -26px; width: 120px; height: 120px; border: 14px solid rgba(255,255,255,.1); border-radius: 30px; transform: rotate(14deg); }
+  .hero b { display: block; font-size: 21px; line-height: 1.3; letter-spacing: -0.03em; margin-bottom: 6px; }
+  .hero small { display: block; font-size: 13.5px; line-height: 1.5; opacity: .82; max-width: 220px; }
+  .hero-plus { width: 52px; height: 52px; border-radius: 50%; background: var(--sub); color: var(--ink); display: grid; place-items: center; position: relative; }
+  .live-card { width: 100%; text-align: left; cursor: pointer; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius-l); padding: 16px; display: block; }
+  .live-card + .live-card { margin-top: 10px; }
+  .live-card.is-live { border-color: var(--main); }
+  .live-card.fresh { animation: fresh 1.6s ease; }
+  .lc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .lc-time { font-size: 12.5px; color: var(--ink-2); }
+  .lc-name { font-size: 18px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 3px; }
+  .lc-date { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
+  .lc-bar { display: block; height: 6px; background: var(--main-soft); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+  .lc-bar i { display: block; height: 100%; background: var(--main); }
+  .lc-foot { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ink-2); gap: 8px; }
+  .lc-foot b { color: var(--ink); }
+  .avatars { display: inline-flex; align-items: center; gap: 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .fcard { border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+  .fcard b { display: block; font-size: 14.5px; margin-top: 8px; }
+  .fcard small { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+  .mosaic { aspect-ratio: 1; border-radius: 16px; overflow: hidden; display: grid; grid-template-columns: 1.4fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; position: relative; background: var(--surface); }
+  .mosaic > :first-child { grid-row: span 2; }
+  .mosaic svg { width: 100%; height: 100%; display: block; }
+  .count { position: absolute; right: 8px; bottom: 8px; background: var(--surface); font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+  .steps { padding: 6px 16px; margin: 0; list-style: none; counter-reset: s; }
+  .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 14px 0; counter-increment: s; }
+  .steps li + li { border-top: 1px dashed var(--line); }
+  .steps li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--main-soft); color: var(--main); font-size: 13px; font-weight: 800; display: grid; place-items: center; }
+  .steps b { display: block; font-size: 14.5px; }
+  .steps small { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; line-height: 1.45; }
+  .empty-note { display: flex; gap: 12px; align-items: center; border: 1.5px dashed var(--line); border-radius: var(--radius-l); padding: 18px 16px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+  .empty-note .ph { width: 44px; height: 44px; border-radius: 12px; background: var(--tile); display: grid; place-items: center; flex: none; color: var(--ink-3); }
+  .empty-note b { display: block; color: var(--ink); font-size: 14.5px; }
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px 6px 14px; }
+  .tab { border: 0; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11.5px; color: var(--ink-3); padding: 4px 0; }
+  .tab[aria-current="page"] { color: var(--main); font-weight: 700; }
+
+  /* 폴더관리 / 마이페이지 */
+  .list-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 0; border: 0; background: none; text-align: left; cursor: pointer; }
+  .list-row + .list-row { border-top: 1px solid var(--line); }
+  .list-thumb { width: 56px; height: 56px; border-radius: 14px; overflow: hidden; flex: none; }
+  .list-thumb svg { width: 100%; height: 100%; display: block; }
+  .list-txt { flex: 1; min-width: 0; }
+  .list-txt b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list-txt small { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+  .profile { display: flex; align-items: center; gap: 14px; padding: 18px 16px; }
+  .profile .big-av { width: 56px; height: 56px; border-radius: 50%; background: var(--main-soft); color: var(--main); display: grid; place-items: center; font-size: 22px; font-weight: 800; }
+  .menu .item { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 15px 16px; border: 0; background: none; font-size: 15px; cursor: pointer; text-align: left; }
+  .menu .item + .item { border-top: 1px solid var(--line); }
+  .menu .item small { color: var(--ink-3); font-size: 13px; }
+  .menu .item .ok { color: var(--main); font-weight: 600; }
+
+  /* =================== 이벤트 만들기 =================== */
+  .name-field { display: flex; align-items: center; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius-m); padding: 0 14px; }
+  .name-field:focus-within { border-color: var(--main); }
+  .name-field input { flex: 1; border: 0; outline: none; background: none; padding: 15px 0; font-size: 16px; font-weight: 600; min-width: 0; }
+  .name-field input::placeholder { color: var(--ink-3); font-weight: 400; }
+  .clear { border: 0; background: var(--line); width: 22px; height: 22px; border-radius: 50%; cursor: pointer; display: none; place-items: center; color: var(--ink-2); padding: 0; }
+  .name-field.has-value .clear { display: grid; }
+  .period { overflow: hidden; }
+  .period.is-expired { border-color: var(--sub); }
+  .when-row { display: grid; grid-template-columns: 44px 1fr; align-items: center; padding: 4px 14px; }
+  .when-row + .when-row { border-top: 1px dashed var(--line); }
+  .when-row label { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  .when-row input { border: 0; background: none; padding: 13px 0; font-size: 15px; font-weight: 600; width: 100%; outline: none; text-align: right; }
+  .when-row input.empty { color: var(--ink-3); font-weight: 400; }
+  .timeline { padding: 16px 16px 14px; background: var(--main-soft); }
+  .period.is-expired .timeline { background: var(--sub-soft); }
+  .tl-duration { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 2px; }
+  .tl-note { font-size: 12.5px; color: var(--ink-2); margin: 0 0 16px; }
+  .track { position: relative; height: 34px; margin: 0 4px 6px; }
+  .track-base { position: absolute; left: 0; right: 0; top: 15px; height: 4px; background: #fff; border-radius: 2px; }
+  .track-seg { position: absolute; top: 9px; height: 16px; background: var(--main); border-radius: 8px; min-width: 16px; transition: left .35s, width .35s; }
+  .period.is-expired .track-seg { background: var(--ink-3); }
+  .track-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+  .track-now span { position: absolute; top: -2px; left: 50%; transform: translate(-50%, -100%); font-size: 11px; font-weight: 700; background: var(--sub); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+  .track-ends { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-2); margin: 0 4px; }
+  .tl-empty { font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
+  .tl-empty strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
+  .alert { display: none; margin-top: 10px; background: var(--sub-soft); border: 1px solid var(--sub); border-radius: var(--radius-m); padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
+  .alert.show { display: block; }
+  .alert strong { display: block; font-size: 14px; margin-bottom: 2px; }
+  .alert button { margin-top: 8px; border: 0; background: var(--ink); color: #fff; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .pw-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+  .pw-input { border-top: 1px solid var(--line); padding: 12px 16px 14px; display: none; }
+  .pw-input.show { display: block; }
+  .pw-input input, .pin { width: 100%; border: 1.5px solid var(--line); border-radius: var(--radius-m); padding: 13px 14px; font-size: 20px; letter-spacing: .5em; font-weight: 700; text-align: center; outline: none; background: var(--bg); }
+  .pw-input input:focus, .pin:focus { border-color: var(--main); }
+
+  /* =================== QR =================== */
+  .qr-card { padding: 22px 20px 18px; text-align: center; }
+  .qr-box { width: 196px; height: 196px; margin: 0 auto 14px; padding: 8px; background: #fff; border-radius: 16px; border: 1.5px solid var(--line); display: grid; place-items: center; }
+  .qr-box img, .qr-box canvas { width: 178px !important; height: 178px !important; }
+  .qr-card h3 { margin: 0 0 4px; font-size: 19px; letter-spacing: -0.03em; }
+  .qr-card p { margin: 0; font-size: 13px; color: var(--ink-2); }
+  .link-field { display: flex; align-items: center; gap: 8px; background: var(--bg); border-radius: 12px; padding: 6px 6px 6px 14px; margin-top: 16px; font-size: 14px; }
+  .link-field span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+  .link-field button { border: 0; background: var(--ink); color: #fff; border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .demo-link { display: block; margin: 14px auto 0; border: 1.5px dashed var(--main); color: var(--main); background: var(--main-soft); border-radius: 12px; padding: 12px; font-size: 13.5px; font-weight: 600; cursor: pointer; width: 100%; }
+
+  /* =================== 시트 =================== */
+  .sheet-wrap { position: absolute; inset: 0; background: rgba(24,27,51,.4); display: none; align-items: flex-end; z-index: 20; }
+  .sheet-wrap.open { display: flex; animation: fade .2s; }
+  .sheet { background: var(--surface); width: 100%; border-radius: 24px 24px 0 0; padding: 10px 20px 24px; animation: up .26s cubic-bezier(.2,.8,.2,1); }
+  .sheet .grip { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 14px; }
+  .sheet h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.02em; }
+  .sheet p { margin: 0 0 16px; font-size: 14px; color: var(--ink-2); line-height: 1.55; }
+  .sheet .btn + .btn { margin-top: 8px; }
+  .share-preview { display: flex; gap: 12px; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .share-preview .mini-qr { width: 48px; height: 48px; border-radius: 10px; background: var(--main-soft); display: grid; place-items: center; color: var(--main); flex: none; }
+  .share-preview b { display: block; font-size: 14.5px; }
+  .share-preview small { display: block; font-size: 12.5px; color: var(--ink-3); }
+  .share-apps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 14px; }
+  .share-app { border: 0; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
+  .share-app i { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 15px; }
+  .share-acts { border-radius: 14px; background: var(--bg); }
+  .share-acts button { width: 100%; text-align: left; border: 0; background: none; padding: 14px 16px; font-size: 15px; cursor: pointer; display: flex; justify-content: space-between; }
+  .share-acts button + button { border-top: 1px solid var(--line); }
+
+  /* =================== 입장 =================== */
+  .invite { text-align: center; padding: 26px 20px 22px; margin-top: 10px; }
+  .invite .host { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); background: var(--bg); border-radius: 999px; padding: 5px 12px 5px 5px; }
+  .invite h2 { font-size: 26px; letter-spacing: -0.04em; margin: 16px 0 6px; line-height: 1.3; }
+  .invite .when { font-size: 14px; color: var(--ink-2); margin: 0 0 18px; }
+  .invite .who { display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); }
+  .web-note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-2); line-height: 1.5; padding: 14px 16px; margin-top: 12px; }
+  .web-note svg { flex: none; color: var(--main); margin-top: 1px; }
+  .expired-box { text-align: center; padding: 60px 10px 0; }
+  .expired-box .ico { width: 72px; height: 72px; border-radius: 22px; background: var(--sub-soft); display: grid; place-items: center; margin: 0 auto 18px; }
+  .expired-box h2 { font-size: 21px; margin: 0 0 8px; letter-spacing: -0.03em; }
+  .expired-box p { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin: 0; }
+
+  /* =================== 얼굴 등록 =================== */
+  .face-frame { width: 220px; height: 220px; margin: 10px auto 22px; border-radius: 50%; border: 3px dashed var(--main); display: grid; place-items: center; position: relative; background: var(--main-soft); color: var(--main); }
+  .face-frame.scanning { border-style: solid; animation: scan 1s ease-in-out infinite; }
+  .face-frame.done { border-style: solid; background: var(--main); color: #fff; }
+  .face-copy { text-align: center; }
+  .face-copy h2 { font-size: 22px; letter-spacing: -0.03em; margin: 0 0 8px; }
+  .face-copy p { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin: 0 0 6px; }
+  .warn { display: flex; gap: 10px; background: var(--sub-soft); border: 1px solid var(--sub); border-radius: var(--radius-m); padding: 12px 14px; font-size: 13px; line-height: 1.5; text-align: left; margin-top: 18px; }
+
+  /* =================== 공유폴더 =================== */
+  .f-head { padding: 0 20px 12px; }
+  .f-head .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); margin-bottom: 12px; flex-wrap: wrap; }
+  .upload { padding: 14px 16px; display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .upload .u-ico { width: 40px; height: 40px; border-radius: 12px; background: var(--main-soft); color: var(--main); display: grid; place-items: center; flex: none; }
+  .upload .u-ico.live { background: var(--sub); color: var(--ink); }
+  .upload b { display: block; font-size: 14.5px; }
+  .upload small { display: block; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; margin-top: 2px; }
+  .upload .u-body { flex: 1; min-width: 0; }
+  .progress { height: 6px; background: var(--main-soft); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--main); transition: width .2s; }
+  .filters { display: flex; gap: 6px; overflow-x: auto; padding: 0 20px 12px; scrollbar-width: none; }
+  .ai-note { display: flex; gap: 8px; font-size: 12.5px; color: var(--ink-2); background: var(--main-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.45; }
+  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .group { border: 0; padding: 0; background: none; text-align: left; cursor: pointer; }
+  .group .ph { position: relative; aspect-ratio: 4/5; border-radius: 16px; overflow: hidden; }
+  .group .ph svg { width: 100%; height: 100%; display: block; }
+  .badge { position: absolute; left: 8px; top: 8px; background: var(--sub); color: var(--ink); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
+  .more { position: absolute; right: 8px; bottom: 8px; background: rgba(24,27,51,.72); color: #fff; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+  .group small { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 6px; }
+  .place-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .place-row .group { width: 132px; flex: none; }
+
+  /* =================== 묶음 상세 =================== */
+  .viewer { margin: 0 20px; border-radius: 20px; overflow: hidden; position: relative; aspect-ratio: 4/5; }
+  .viewer svg { width: 100%; height: 100%; display: block; }
+  .reasons { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 20px 4px; }
+  .reason { font-size: 12.5px; background: var(--main-soft); color: var(--main); padding: 5px 10px; border-radius: 999px; font-weight: 600; }
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px; scrollbar-width: none; }
+  .thumb-btn { width: 62px; height: 62px; border-radius: 12px; overflow: hidden; border: 0; padding: 0; flex: none; cursor: pointer; position: relative; outline: 2.5px solid transparent; outline-offset: -2.5px; }
+  .thumb-btn svg { width: 100%; height: 100%; display: block; }
+  .thumb-btn[aria-pressed="true"] { outline-color: var(--main); }
+  .thumb-btn .star { position: absolute; left: 4px; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--sub); display: grid; place-items: center; font-size: 9px; font-weight: 800; }
+  .row-btns { display: flex; gap: 8px; }
+  .row-btns .btn { flex: 1; }
+
+  .toast { position: absolute; left: 50%; bottom: 110px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; background: var(--ink); color: #fff; font-size: 14px; padding: 12px 18px; border-radius: 12px; white-space: nowrap; transition: opacity .2s, transform .2s; z-index: 30; max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { opacity: .5; } }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes up { from { transform: translateY(40px); opacity: 0; } }
+  @keyframes scan { 50% { transform: scale(1.03); } }
+  @keyframes fresh { 0%, 40% { box-shadow: 0 0 0 4px var(--sub); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+    .spinner { animation: spin 1.6s linear infinite !important; }
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="demo">
+  <label>화면 <select id="jump" aria-label="화면 바로가기">
+    <optgroup label="호스트 (앱)">
+      <option value="home">홈</option>
+      <option value="folders">폴더관리</option>
+      <option value="my">마이페이지</option>
+      <option value="create">이벤트 만들기</option>
+      <option value="qr">QR 생성 완료</option>
+    </optgroup>
+    <optgroup label="참여자 (웹)">
+      <option value="join">공유폴더 입장</option>
+      <option value="options">내 공유 옵션</option>
+      <option value="face">얼굴 등록</option>
+    </optgroup>
+    <optgroup label="공통">
+      <option value="folder">공유폴더</option>
+      <option value="group">묶음 상세</option>
+    </optgroup>
+  </select></label>
+  <span id="demoStates" style="display:contents"></span>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- 홈 -->
+  <main class="view" id="v-home" data-route="home">
+    <header class="home-bar">
+      <p class="wordmark">phoU</p>
+      <button class="icon-btn" type="button" aria-label="알림" data-toast="알림 화면은 다음 단계에서 만들어요">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg><span class="dot"></span>
+      </button>
+    </header>
+    <div class="skeleton" aria-hidden="true">
+      <div class="sk" style="height:26px;width:55%;margin-top:10px"></div><div class="sk" style="height:26px;width:75%"></div>
+      <div class="sk-gap"></div><div class="sk" style="height:128px;border-radius:24px"></div>
+      <div class="sk-gap"></div><div class="sk" style="height:14px;width:24%"></div><div class="sk" style="height:150px;border-radius:20px"></div>
+      <p class="loading-label"><span class="spinner dark"></span>내 공유 폴더를 불러오는 중</p>
+    </div>
+    <div class="scroll tabs-pad" id="homeBody"></div>
+  </main>
+
+  <!-- 폴더관리 -->
+  <main class="view" id="v-folders" data-route="folders">
+    <header class="appbar" style="padding-left:20px"><h1>폴더관리</h1></header>
+    <div class="scroll tabs-pad" id="foldersBody"></div>
+  </main>
+
+  <!-- 마이페이지 -->
+  <main class="view" id="v-my" data-route="my">
+    <header class="appbar" style="padding-left:20px"><h1>마이페이지</h1></header>
+    <div class="scroll tabs-pad" id="myBody"></div>
+  </main>
+
+  <!-- 이벤트 만들기 -->
+  <main class="view" id="v-create" data-route="create">
+    <header class="appbar">
+      <button class="icon-btn" type="button" aria-label="홈으로" data-nav="home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <h1>이벤트 만들기</h1>
+    </header>
+    <div class="skeleton" aria-hidden="true">
+      <div class="sk" style="height:30px;width:70%"></div><div class="sk" style="height:16px;width:85%"></div>
+      <div class="sk-gap"></div><div class="sk" style="height:52px"></div>
+      <div class="sk-gap"></div><div class="sk" style="height:200px;border-radius:20px"></div>
+      <div class="sk-gap"></div><div class="sk" style="height:180px;border-radius:20px"></div>
+      <p class="loading-label"><span class="spinner dark"></span>공유 설정을 불러오는 중</p>
+    </div>
+    <div class="scroll" id="form">
+      <p class="lead">함께 찍을 사진,<br>한 곳에 모아요</p>
+      <p class="lead-sub">이벤트 기간 동안 참여자들이 찍은 사진이 이 공유 폴더에 모여요.</p>
+
+      <section>
+        <div class="sec-head"><h2><label for="name">이벤트 이름</label></h2><span class="meta"><span id="count">0</span>/24</span></div>
+        <div class="name-field" id="nameField">
+          <input id="name" type="text" maxlength="24" placeholder="예: 시디과 23학번 MT" autocomplete="off">
+          <button class="clear" type="button" id="clearName" aria-label="이름 지우기"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l6 6M8 2l-6 6"/></svg></button>
+        </div>
+        <div class="chips" id="nameChips">
+          <button class="chip" type="button">MT</button><button class="chip" type="button">졸업전시</button><button class="chip" type="button">생일파티</button><button class="chip" type="button">동아리 공연</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>날짜와 기간</h2><span class="meta">이 시간에 찍은 사진만 모여요</span></div>
+        <div class="period card" id="period">
+          <div class="when-row"><label for="start">시작</label><input id="start" type="datetime-local" step="600"></div>
+          <div class="when-row"><label for="end">종료</label><input id="end" type="datetime-local" step="600"></div>
+          <div class="timeline" id="timeline" aria-live="polite"></div>
+        </div>
+        <div class="chips" id="quick">
+          <button class="chip" type="button" data-hours="3">지금부터 3시간</button><button class="chip" type="button" data-hours="24">하루</button><button class="chip" type="button" data-hours="48">1박 2일</button><button class="chip" type="button" data-hours="72">2박 3일</button>
+        </div>
+        <div class="alert" id="alert" role="alert">
+          <strong>종료 시간이 이미 지났어요</strong>지난 기간으로는 공유 폴더를 만들 수 없어요. 종료 시간을 지금 이후로 바꿔 주세요.
+          <br><button type="button" id="fixPeriod">지금부터 3시간으로 바꾸기</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>내 사진 공유 옵션</h2><span class="meta" id="optCount"></span></div>
+        <div class="card options" id="hostOpts"></div>
+        <p class="note">호스트인 내 사진에만 적용돼요. 참여자는 입장할 때 자기 사진 옵션을 각자 정하고, 서로의 설정은 바꿀 수 없어요.</p>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>링크 설정</h2><span class="meta">참여자는 바꿀 수 없어요</span></div>
+        <div class="card">
+          <div style="padding:14px 16px 4px;font-size:14px;font-weight:600">링크 유효기간</div>
+          <div class="chips" id="expiry" style="padding:0 16px 14px;margin-top:6px">
+            <button class="chip" type="button" data-days="1">끝나고 하루</button>
+            <button class="chip" type="button" data-days="7" aria-pressed="true">끝나고 7일</button>
+            <button class="chip" type="button" data-days="30">끝나고 30일</button>
+          </div>
+          <div class="pw-row" style="border-top:1px solid var(--line)">
+            <span class="opt-txt" id="l-pw"><b>입장 비밀번호</b><small>숫자 4자리를 아는 사람만 들어올 수 있어요</small></span>
+            <button class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="l-pw" id="pwSwitch"></button>
+          </div>
+          <div class="pw-input" id="pwBox"><input id="pw" class="" inputmode="numeric" maxlength="4" placeholder="••••" aria-label="비밀번호 숫자 4자리"></div>
+        </div>
+      </section>
+    </div>
+    <div class="bottom">
+      <p class="hint" id="hint"></p>
+      <button class="btn" type="button" id="cta" disabled>공유 폴더 만들기</button>
+    </div>
+  </main>
+
+  <!-- QR 생성 완료 -->
+  <main class="view" id="v-qr" data-route="qr">
+    <header class="appbar">
+      <button class="icon-btn" type="button" aria-label="뒤로가기" data-nav="home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <h1>친구 초대하기</h1>
+    </header>
+    <div class="scroll" id="qrBody"></div>
+    <div class="bottom">
+      <button class="btn" type="button" data-act="share">공유하기</button>
+      <button class="btn ghost" type="button" data-nav="home">뒤로가기</button>
+    </div>
+  </main>
+
+  <!-- 입장 (웹) -->
+  <main class="view" id="v-join" data-route="join"></main>
+  <!-- 내 공유 옵션 (웹) -->
+  <main class="view" id="v-options" data-route="options"></main>
+  <!-- 얼굴 등록 (웹) -->
+  <main class="view" id="v-face" data-route="face"></main>
+  <!-- 공유폴더 -->
+  <main class="view" id="v-folder" data-route="folder"></main>
+  <!-- 묶음 상세 -->
+  <main class="view" id="v-group" data-route="group"></main>
+
+  <!-- 하단 탭 (홈·폴더관리·마이페이지에서만) -->
+  <nav class="tabbar" id="tabbar" aria-label="주요 메뉴">
+    <button class="tab" type="button" data-nav="home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5V20H4z"/></svg>홈</button>
+    <button class="tab" type="button" data-nav="folders"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>폴더관리</button>
+    <button class="tab" type="button" data-nav="my"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20c1.3-3.4 4.1-5 7.5-5s6.2 1.6 7.5 5"/></svg>마이페이지</button>
+  </nav>
+
+  <div class="sheet-wrap" id="sheetWrap"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+  <div class="toast" id="toast" role="status"></div>
+  <p class="sr-only" role="status" id="srStatus"></p>
+</div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const H = 3600000, D = 24 * H;
+  const phone = $('#phone');
+
+  /* ---------- 유틸 ---------- */
+  const pad = n => String(n).padStart(2, '0');
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const toLocalValue = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parse = v => (v ? new Date(v) : null);
+  const roundUp10 = d => { const r = new Date(d); r.setSeconds(0, 0); r.setMinutes(Math.ceil(r.getMinutes() / 10) * 10); return r; };
+  const tm = d => { const h = d.getHours(); return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${pad(d.getMinutes())}`; };
+  const day = d => `${d.getMonth() + 1}.${d.getDate()} (${days[d.getDay()]})`;
+  const fmt = d => `${day(d)} ${tm(d)}`;
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  const range = (s, e) => { s = new Date(s); e = new Date(e); return sameDay(s, e) ? `${day(s)} ${tm(s)} – ${tm(e)}` : `${fmt(s)} – ${fmt(e)}`; };
+  const shortRange = (s, e) => { s = new Date(s); e = new Date(e); return sameDay(s, e) ? day(s) : `${s.getMonth() + 1}.${s.getDate()} – ${e.getMonth() + 1}.${e.getDate()}`; };
+  const fmtDuration = ms => { const m = Math.round(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60; return [d && `${d}일`, h && `${h}시간`, mm && `${mm}분`].filter(Boolean).join(' ') || '0분'; };
+  const rel = ms => { const m = Math.round(Math.abs(ms) / 60000); return m < 60 ? `${Math.max(m, 1)}분` : m < 1440 ? `${Math.round(m / 60)}시간` : `${Math.round(m / 1440)}일`; };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const at = (dOff, h) => { const x = new Date(); x.setDate(x.getDate() + dOff); x.setHours(h, 0, 0, 0); return x.getTime(); };
+  const ICON = {
+    back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+    lock: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    plus: '<svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    folder: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    globe: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/></svg>',
+    face: '<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M9 10h.01M15 10h.01M9 15c1.7 1.4 4.3 1.4 6 0"/></svg>',
+    check: '<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    upload: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>',
+    sync: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.7-4M4 13a8 8 0 0 0 14.7 4M5 3v4h4M19 21v-4h-4"/></svg>',
+    spark: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7z"/></svg>',
+    share: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M5 12v8h14v-8"/></svg>',
+  };
+
+  /* ---------- 예시 사진 (실제 사진 대신 그린 장면) ---------- */
+  function rng(seed) { let a = seed * 9301 + 49297; return () => { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; }; }
+  const SCENES = [
+    { sky: '#E8EBF6', ground: '#DCE1FA', deco: r => `<rect x="${12 + r() * 30}" y="14" width="30" height="24" rx="2" fill="#fff"/><rect x="${12 + r() * 30 + 14}" y="14" width="2" height="24" fill="#E8EBF6"/>` },   // 펜션 거실
+    { sky: '#FFF6DC', ground: '#FFEDB8', deco: r => `<circle cx="${70 + r() * 16}" cy="20" r="9" fill="#FFC83D"/><rect x="38" y="60" width="26" height="5" rx="2" fill="#9AA0BD"/>` },                                // 바비큐장
+    { sky: '#E9ECFF', ground: '#C9D1FB', deco: r => `<path d="M0 ${66 + r() * 4} Q25 ${60 + r() * 6} 50 66 T100 64 V100 H0Z" fill="#B7C1F7"/>` },                                                          // 계곡
+  ];
+  const PEOPLE = ['#2F45E8', '#5D6283', '#181B33', '#9AA0BD'];
+  function photo(seed, place) {
+    const r = rng(seed), sc = SCENES[place % 3];
+    const n = 1 + Math.floor(r() * 4), w = 100 / (n + 1);
+    let people = '';
+    for (let i = 0; i < n; i++) {
+      const x = w * (i + 1) + (r() - .5) * 8, hy = 46 + r() * 10, c = PEOPLE[Math.floor(r() * 4)];
+      people += `<rect x="${x - 10}" y="${hy + 8}" width="20" height="40" rx="9" fill="${c}"/><circle cx="${x}" cy="${hy}" r="${7 + r() * 2}" fill="#FAD9B5"/>`;
+    }
+    return `<svg viewBox="0 0 100 125" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="100" height="125" fill="${sc.sky}"/><rect y="72" width="100" height="53" fill="${sc.ground}"/>${sc.deco(r)}${people}</svg>`;
+  }
+
+  /* ---------- 상태 ---------- */
+  const PLACES = ['펜션 거실', '바비큐장', '계곡'];
+  const REASONS = ['눈 감은 사람 없음', '흔들림 없음', '모두 얼굴이 보여요', '구도가 가장 안정적', '빛이 가장 밝아요', '표정이 자연스러워요'];
+  const GROUP_SRC = [[0, '오후 3:20', 6, 1], [2, '오후 4:05', 9, 1], [2, '오후 4:40', 4, 0], [1, '오후 6:30', 7, 1], [1, '오후 7:10', 3, 0], [0, '오후 9:45', 12, 1], [0, '오후 11:20', 5, 0], [1, '오후 8:00', 2, 1], [2, '다음날 오전 10:15', 8, 0]];
+  const makeGroups = () => GROUP_SRC.map(([place, time, n, me], i) => ({ id: i, place, time, n, me: !!me, best: 0, reasons: [REASONS[i % 6], REASONS[(i + 2) % 6]] }));
+
+  function sampleFolders() {
+    const ls = at(0, new Date().getHours() - 5);
+    return [
+      { name: '시디과 23학번 MT', start: ls, end: ls + 24 * H, photos: 56, members: 11, mine: true, code: 'MT23AB' },
+      { name: '졸업전시 오프닝', start: at(4, 17), end: at(4, 22), photos: 0, members: 2, mine: true, code: 'GRAD04' },
+      { name: '속초 여행', start: at(-10, 9), end: at(-8, 20), photos: 204, members: 4, mine: false, code: 'SOKCHO' },
+      { name: '롯데 팬들 직관', start: at(-20, 17), end: at(-20, 22), photos: 57, members: 6, mine: true, code: 'GIANTS' },
+      { name: '고양이 전시회', start: at(-35, 13), end: at(-35, 16), photos: 23, members: 3, mine: false, code: 'CATS35' },
+    ];
+  }
+  const S = {
+    route: 'home', homeMode: 'existing', folders: sampleFolders(),
+    current: null, role: 'host', phase: 'live', filter: 'all', groups: makeGroups(), groupId: 0, sel: 0,
+    hostFace: false, guest: { opts: { selfie: false, blur: true, screenshot: true }, face: false, upload: 'idle', uploaded: 0 },
+    joinState: 'normal', faceStatus: 'idle', faceReturn: 'folder',
+  };
+  const defaultCurrent = () => ({ ...S.folders[0], expiryDays: 7, password: '', hostOpts: { selfie: false, blur: true, screenshot: true }, host: '지수' });
+  S.current = defaultCurrent();
+
+  const OPTS = [
+    ['selfie', '셀카 제외', '전면 카메라로 찍은 사진은 올라가지 않아요', '<circle cx="12" cy="9" r="4"/><path d="M4.5 20c1.3-3.4 4.1-5 7.5-5s6.2 1.6 7.5 5"/>'],
+    ['blur', '흔들린 사진 제외', '초점이 맞지 않거나 흔들린 사진을 걸러요', '<rect x="3" y="6" width="14" height="12" rx="2"/><path d="M20 8v8M23 10v4"/>'],
+    ['screenshot', '스크린샷 제외', '기간 중 캡처한 화면은 올라가지 않아요', '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M9 8V6.5h1.5M15 16v1.5h-1.5"/>'],
+  ];
+  const optRows = (opts, scope) => OPTS.map(([k, t, d, ic]) => `
+    <div class="opt ${opts[k] ? 'on' : ''}" data-act="toggle-opt" data-scope="${scope}" data-key="${k}">
+      <span class="opt-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${ic}</svg></span>
+      <span class="opt-txt" id="l-${scope}-${k}"><b>${t}</b><small>${d}</small></span>
+      <button class="switch" type="button" role="switch" aria-checked="${!!opts[k]}" aria-labelledby="l-${scope}-${k}"></button>
+    </div>`).join('');
+  const excluded = opts => OPTS.filter(([k]) => opts[k]).map(([, t]) => t.replace(' 제외', ''));
+  const avatars = (n, first = '지') => { const pool = [first, '민', '서', '현', '유']; let h = ''; for (let i = 0; i < Math.min(n, 3); i++) h += `<span class="av c${i % 3}">${pool[i]}</span>`; return `<span class="stack">${h}</span>`; };
+  const expiryDate = f => new Date(f.end + (f.expiryDays || 7) * D);
+  const webbar = () => `<div class="webbar"><span>${ICON.lock}phou.app/e/${esc(S.current.code)}</span></div>`;
+
+  /* ---------- 토스트 / 시트 ---------- */
+  let toastT;
+  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
+  function openSheet(html) { $('#sheet').innerHTML = `<div class="grip"></div>${html}`; $('#sheetWrap').classList.add('open'); setTimeout(() => { const f = $('#sheet input, #sheet button'); f && f.focus(); }, 50); }
+  function closeSheet() { $('#sheetWrap').classList.remove('open'); }
+  $('#sheetWrap').addEventListener('click', e => { if (e.target.id === 'sheetWrap') closeSheet(); });
+
+  /* =================== 홈 =================== */
+  function renderHome() {
+    const v = $('#v-home');
+    v.classList.toggle('loading', S.homeMode === 'loading');
+    if (S.homeMode === 'loading') return;
+    const now = Date.now(), empty = S.homeMode === 'new' || !S.folders.length;
+    const active = S.folders.filter(f => f.end > now).sort((a, b) => a.start - b.start);
+    const past = S.folders.filter(f => f.end <= now).sort((a, b) => b.end - a.end);
+    let h = `<p class="hello">${empty ? '반가워요!<br>첫 이벤트를 만들어 볼까요?' : '지수님,<br>오늘도 좋은 순간 함께 해요'}</p>
+      <button class="hero" type="button" data-nav="create"><span class="hero-frame" aria-hidden="true"></span>
+        <span><b>새 이벤트 공유 폴더<br>만들기</b><small>정해둔 기간에 찍은 사진이 한 폴더에 모여요</small></span>
+        <span class="hero-plus" aria-hidden="true">${ICON.plus}</span></button>`;
+    if (empty) {
+      h += `<section><div class="sec-head"><h2>이렇게 사진이 모여요</h2></div>
+        <ol class="card steps">
+          <li><span><b>이벤트 이름과 기간 정하기</b><small>MT, 여행, 공연처럼 사진을 모을 시간을 정해요</small></span></li>
+          <li><span><b>QR이나 링크로 친구 초대하기</b><small>받는 친구는 앱 설치 없이 웹으로 바로 열어요</small></span></li>
+          <li><span><b>기간 중 찍은 사진이 모이기</b><small>AI가 비슷한 사진을 묶고 베스트컷을 골라줘요</small></span></li>
+        </ol></section>
+        <section><div class="sec-head"><h2>내 공유 폴더</h2></div>
+        <div class="empty-note"><span class="ph" aria-hidden="true">${ICON.folder}</span><span><b>아직 만들거나 참여한 폴더가 없어요</b>링크로 참여한 폴더도 폴더관리에 모여요.</span></div></section>`;
+    } else {
+      if (active.length) {
+        h += `<section><div class="sec-head"><h2>진행 중이거나 곧 열리는 이벤트</h2><span class="meta">${active.length}개</span></div>`;
+        active.forEach(f => {
+          const i = S.folders.indexOf(f), live = f.start <= now, pct = live ? Math.min(100, (now - f.start) / (f.end - f.start) * 100) : 0;
+          const pill = f.isNew ? '<span class="pill new">방금 만듦</span>' : live ? '<span class="pill live">진행 중</span>' : '<span class="pill soon">예정</span>';
+          h += `<button class="live-card ${live ? 'is-live' : ''} ${f.isNew ? 'fresh' : ''}" type="button" data-act="open-folder" data-i="${i}">
+            <span class="lc-top">${pill}<span class="lc-time">${live ? `${rel(f.end - now)} 뒤 마감` : `${rel(f.start - now)} 뒤 시작`}</span></span>
+            <p class="lc-name">${esc(f.name)}</p><p class="lc-date">${range(f.start, f.end)}</p>
+            ${live ? `<span class="lc-bar" aria-hidden="true"><i style="width:${pct}%"></i></span>` : ''}
+            <span class="lc-foot"><span class="avatars">${avatars(f.members)}${f.members}명</span><span>${f.photos ? `사진 <b>${f.photos}장</b>` : '시작하면 사진이 모여요'}</span></span></button>`;
+          delete f.isNew;
+        });
+        h += `</section>`;
+      }
+      if (past.length) {
+        h += `<section><div class="sec-head"><h2>지난 이벤트</h2><span class="meta">${past.length}개</span></div><div class="grid2">`;
+        past.forEach((f, k) => {
+          h += `<button class="fcard" type="button" data-act="open-folder" data-i="${S.folders.indexOf(f)}"><span class="mosaic">${photo(k * 7 + 1, k)}${photo(k * 7 + 2, k + 1)}${photo(k * 7 + 3, k + 2)}<span class="count">${f.photos}장</span></span><b>${esc(f.name)}</b><small>${shortRange(f.start, f.end)}</small></button>`;
+        });
+        h += `</div></section>`;
+      }
+    }
+    $('#homeBody').innerHTML = h;
+  }
+
+  /* =================== 폴더관리 =================== */
+  let folderTab = 'all';
+  function renderFolders() {
+    const now = Date.now(), empty = S.homeMode === 'new' || !S.folders.length;
+    const list = S.folders.filter(f => folderTab === 'all' || (folderTab === 'mine' ? f.mine : !f.mine));
+    let h = `<div class="chips" style="margin:0 0 14px">${[['all', '전체'], ['mine', '내가 만든'], ['joined', '참여한']].map(([k, l]) => `<button class="chip" type="button" data-act="folder-tab" data-k="${k}" aria-pressed="${folderTab === k}">${l}</button>`).join('')}</div>`;
+    if (empty) {
+      h += `<div class="empty-note" style="flex-direction:column;text-align:center;padding:40px 20px"><span class="ph" aria-hidden="true">${ICON.folder}</span><span><b>폴더가 비어 있어요</b>이벤트를 만들거나 친구 링크로 참여하면 여기에 모여요.</span><button class="btn small" type="button" data-nav="create">새 이벤트 만들기</button></div>`;
+    } else if (!list.length) {
+      h += `<p class="note" style="text-align:center;padding:30px 0">해당하는 폴더가 없어요</p>`;
+    } else {
+      h += `<div>` + list.map((f, k) => {
+        const st = f.end <= now ? '<span class="pill done">종료</span>' : f.start <= now ? '<span class="pill live">진행 중</span>' : '<span class="pill soon">예정</span>';
+        return `<button class="list-row" type="button" data-act="open-folder" data-i="${S.folders.indexOf(f)}"><span class="list-thumb">${photo(k * 11 + 5, k)}</span><span class="list-txt"><b>${esc(f.name)}</b><small>${shortRange(f.start, f.end)} · ${f.mine ? '내가 만듦' : '참여'} · 사진 ${f.photos}장</small></span>${st}</button>`;
+      }).join('') + `</div>`;
+    }
+    $('#foldersBody').innerHTML = h;
+  }
+
+  /* =================== 마이페이지 =================== */
+  function renderMy() {
+    $('#myBody').innerHTML = `
+      <div class="card profile"><span class="big-av">지</span><span><b style="font-size:17px">지수</b><br><small style="color:var(--ink-2)">jisu@example.com</small></span></div>
+      <section style="margin-top:20px"><div class="sec-head"><h2>내 사진 찾기</h2></div>
+        <div class="card menu"><button class="item" type="button" data-act="face-from" data-from="my"><span>얼굴 등록</span>${S.hostFace ? '<span class="ok">등록됨</span>' : '<small>등록 안 함</small>'}</button></div>
+        <p class="note">등록하면 공유폴더에서 '내가 나온 사진'을 골라 볼 수 있어요.</p></section>
+      <section><div class="sec-head"><h2>설정</h2></div>
+        <div class="card menu">
+          <button class="item" type="button" data-toast="알림 설정은 다음 단계에서 만들어요"><span>알림</span><small>켜짐</small></button>
+          <button class="item" type="button" data-toast="저장 화질 설정은 다음 단계에서 만들어요"><span>저장 화질</span><small>원본</small></button>
+          <button class="item" type="button" data-toast="계정 관리는 다음 단계에서 만들어요"><span>계정 관리</span><small></small></button>
+          <button class="item" type="button" data-toast="로그아웃했어요 (시연)"><span>로그아웃</span><small></small></button>
+        </div></section>`;
+  }
+
+  /* =================== 이벤트 만들기 =================== */
+  const nameInput = $('#name'), startInput = $('#start'), endInput = $('#end'), cta = $('#cta');
+  let hostOptsDraft = { selfie: false, blur: false, screenshot: false }, expiryDays = 7, pwOn = false, creating = false;
+
+  function createState() {
+    const s = parse(startInput.value), e = parse(endInput.value), now = new Date(), name = nameInput.value.trim();
+    const kind = !s || !e ? 'incomplete' : e <= s ? 'reversed' : e <= now ? 'expired' : 'ok';
+    return { kind, s, e, now, name };
+  }
+  function renderCreate() {
+    const st = createState();
+    $('#nameField').classList.toggle('has-value', nameInput.value.length > 0);
+    $('#count').textContent = nameInput.value.length;
+    [startInput, endInput].forEach(i => i.classList.toggle('empty', !i.value));
+    $('#period').classList.toggle('is-expired', st.kind === 'expired');
+    $('#alert').classList.toggle('show', st.kind === 'expired');
+    const tl = $('#timeline');
+    if (st.kind === 'incomplete') tl.innerHTML = `<div class="tl-empty"><strong>아직 기간이 비어 있어요</strong>시작과 종료 시간을 정하거나 아래에서 빠르게 골라 보세요.</div>`;
+    else if (st.kind === 'reversed') tl.innerHTML = `<div class="tl-empty"><strong>종료가 시작보다 빨라요</strong>종료 시간을 시작 시간 이후로 바꿔 주세요.</div>`;
+    else {
+      const { s, e, now } = st, lo = Math.min(s, now), hi = Math.max(e, now), p = (hi - lo || 1) * .08, min = lo - p, tot = hi + p - min, pct = t => (t - min) / tot * 100;
+      const note = st.kind === 'expired' ? `${rel(now - e)} 전에 끝난 기간이에요` : s <= now ? `지금 진행 중이고, ${rel(e - now)} 뒤에 마감돼요` : `${rel(s - now)} 뒤에 시작해요`;
+      tl.innerHTML = `<p class="tl-duration">총 ${fmtDuration(e - s)}</p><p class="tl-note">${note}</p>
+        <div class="track" aria-hidden="true"><div class="track-base"></div><div class="track-seg" style="left:${pct(s)}%;width:${pct(e) - pct(s)}%"></div><div class="track-now" style="left:${pct(now)}%"><span>지금</span></div></div>
+        <div class="track-ends"><span>${fmt(s)}</span><span>${fmt(e)}</span></div>`;
+    }
+    $('#hostOpts').innerHTML = optRows(hostOptsDraft, 'host');
+    const on = Object.values(hostOptsDraft).filter(Boolean).length;
+    $('#optCount').textContent = on ? `3개 중 ${on}개 적용` : '옵션 없음, 내 사진이 모두 올라가요';
+    $('#pwSwitch').setAttribute('aria-checked', pwOn); $('#pwBox').classList.toggle('show', pwOn);
+    $$('#expiry .chip').forEach(c => c.setAttribute('aria-pressed', +c.dataset.days === expiryDays));
+    if (creating) return;
+    const pw = $('#pw').value;
+    let msg = '';
+    if (!st.name && st.kind === 'incomplete') msg = '이벤트 이름과 기간을 입력하면 만들 수 있어요';
+    else if (!st.name) msg = '이벤트 이름을 입력해 주세요';
+    else if (st.kind === 'incomplete') msg = '시작과 종료 시간을 정해 주세요';
+    else if (st.kind === 'reversed') msg = '종료 시간을 시작 이후로 바꿔 주세요';
+    else if (st.kind === 'expired') msg = '이미 지난 기간이라 만들 수 없어요';
+    else if (pwOn && !/^\d{4}$/.test(pw)) msg = '입장 비밀번호 숫자 4자리를 입력해 주세요';
+    $('#hint').textContent = msg; cta.disabled = !!msg;
+  }
+  const syncChips = () => {
+    $$('#nameChips .chip').forEach(c => c.setAttribute('aria-pressed', c.textContent === nameInput.value.trim()));
+  };
+  function setFromNow(h) { const s = roundUp10(new Date()); startInput.value = toLocalValue(s); endInput.value = toLocalValue(new Date(s.getTime() + h * H)); }
+  const syncQuick = h => $$('#quick .chip').forEach(c => c.setAttribute('aria-pressed', +c.dataset.hours === h));
+
+  nameInput.addEventListener('input', () => { syncChips(); renderCreate(); });
+  $('#clearName').addEventListener('click', () => { nameInput.value = ''; nameInput.focus(); syncChips(); renderCreate(); });
+  $$('#nameChips .chip').forEach(c => c.addEventListener('click', () => { nameInput.value = c.textContent; syncChips(); renderCreate(); }));
+  [startInput, endInput].forEach(i => i.addEventListener('input', () => { syncQuick(); renderCreate(); }));
+  $$('#quick .chip').forEach(c => c.addEventListener('click', () => { setFromNow(+c.dataset.hours); syncQuick(+c.dataset.hours); renderCreate(); }));
+  $('#fixPeriod').addEventListener('click', () => { setFromNow(3); syncQuick(3); renderCreate(); });
+  $$('#expiry .chip').forEach(c => c.addEventListener('click', () => { expiryDays = +c.dataset.days; renderCreate(); }));
+  $('#pwSwitch').addEventListener('click', () => { pwOn = !pwOn; renderCreate(); if (pwOn) $('#pw').focus(); });
+  $('#pw').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); renderCreate(); });
+
+  cta.addEventListener('click', () => {
+    if (cta.disabled) return;
+    const st = createState();
+    creating = true; cta.disabled = true; $('#hint').textContent = '';
+    cta.innerHTML = '<span class="spinner" aria-hidden="true"></span>만드는 중';
+    setTimeout(() => {
+      creating = false; cta.textContent = '공유 폴더 만들기';
+      const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const f = { name: st.name, start: st.s.getTime(), end: st.e.getTime(), photos: 0, members: 1, mine: true, code, isNew: true,
+        expiryDays, password: pwOn ? $('#pw').value : '', hostOpts: { ...hostOptsDraft }, host: '지수' };
+      S.folders.push(f); S.homeMode = 'existing'; S.current = f; S.groups = makeGroups();
+      nav('qr');
+    }, 1300);
+  });
+
+  const createPresets = {
+    empty() { nameInput.value = ''; startInput.value = ''; endInput.value = ''; hostOptsDraft = { selfie: false, blur: false, screenshot: false }; expiryDays = 7; pwOn = false; $('#pw').value = ''; },
+    filled() { nameInput.value = '시디과 23학번 MT'; const s = new Date(at(2, 14)); startInput.value = toLocalValue(s); endInput.value = toLocalValue(new Date(s.getTime() + 30 * H)); hostOptsDraft = { selfie: false, blur: true, screenshot: true }; expiryDays = 7; pwOn = true; $('#pw').value = '0423'; },
+    expired() { nameInput.value = '졸업전시 오프닝'; const s = new Date(at(-3, 17)); startInput.value = toLocalValue(s); endInput.value = toLocalValue(new Date(s.getTime() + 5 * H)); hostOptsDraft = { selfie: true, blur: true, screenshot: false }; pwOn = false; $('#pw').value = ''; },
+  };
+  let createMode = 'empty', loadT;
+  function createDemo(kind, ms = 1600) {
+    clearTimeout(loadT); createMode = kind; creating = false; cta.textContent = '공유 폴더 만들기';
+    const v = $('#v-create');
+    if (kind === 'loading') {
+      v.classList.add('loading'); createPresets.empty();
+      loadT = setTimeout(() => createDemo('empty'), ms);
+    } else {
+      v.classList.remove('loading'); createPresets[kind]();
+      $('#form').scrollTop = kind === 'expired' ? 230 : 0;
+    }
+    syncChips(); syncQuick(); renderCreate(); renderDemo();
+  }
+
+  /* =================== QR =================== */
+  function renderQR() {
+    const f = S.current;
+    $('#qrBody').innerHTML = `
+      <p class="lead" style="margin-top:0">공유 폴더를 만들었어요</p>
+      <p class="lead-sub" style="margin-bottom:18px">QR을 보여주거나 링크를 보내 친구를 초대해요.</p>
+      <div class="card qr-card">
+        <div class="qr-box" id="qrBox" role="img" aria-label="입장 QR 코드"></div>
+        <h3>${esc(f.name)}</h3><p>${range(f.start, f.end)}</p>
+        <div class="link-field"><span>phou.app/e/${esc(f.code)}</span><button type="button" data-act="copy">복사</button></div>
+      </div>
+      <div class="card rows" style="margin-top:12px">
+        <div class="row"><span>링크 유효기간</span><span>${fmt(expiryDate(f))}까지</span></div>
+        <div class="row"><span>입장 비밀번호</span><span>${f.password ? `${esc(f.password)}` : '없음'}</span></div>
+      </div>
+      ${f.password ? '<p class="note">비밀번호는 링크와 따로 친구에게 알려주세요.</p>' : ''}
+      <button class="demo-link" type="button" data-act="as-guest">시연용: 친구 폰에서 이 링크 열어보기</button>`;
+    const box = $('#qrBox');
+    const url = location.href.split('#')[0] + '#join';
+    try {
+      if (typeof QRCode === 'undefined') throw 0;
+      new QRCode(box, { text: url, width: 178, height: 178, colorDark: '#181B33', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    } catch (_) {
+      const r = rng(7); let cells = '';
+      for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++) { const corner = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13); if (!corner && r() > .55) cells += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }
+      const eye = (x, y) => `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`;
+      box.innerHTML = `<svg viewBox="0 0 21 21" width="178" height="178" fill="#181B33" shape-rendering="crispEdges">${cells}${eye(0, 0)}${eye(14, 0)}${eye(0, 14)}</svg>`;
+    }
+  }
+  function shareSheet() {
+    const f = S.current;
+    const apps = [['카카오톡', 'K', 'var(--sub)', 'var(--ink)'], ['인스타그램', 'I', 'var(--main)', '#fff'], ['메시지', 'M', 'var(--main-soft)', 'var(--main)'], ['메일', '@', 'var(--tile)', 'var(--ink-2)'], ['더보기', '···', 'var(--bg)', 'var(--ink-2)']];
+    openSheet(`<div class="share-preview"><span class="mini-qr">${ICON.share}</span><span><b>${esc(f.name)}에 초대해요</b><small>phou.app/e/${esc(f.code)}</small></span></div>
+      <div class="share-apps">${apps.map(([n, l, bg, c]) => `<button class="share-app" type="button" data-act="share-to" data-app="${n}"><i style="background:${bg};color:${c}">${l}</i>${n}</button>`).join('')}</div>
+      <div class="share-acts"><button type="button" data-act="copy">링크 복사</button><button type="button" data-act="share-to" data-app="QR 이미지 저장">QR 이미지 저장</button></div>`);
+  }
+
+  /* =================== 입장 (웹) =================== */
+  function renderJoin() {
+    const f = S.current, v = $('#v-join'), now = Date.now();
+    if (S.joinState === 'expired') {
+      v.innerHTML = `${webbar()}<div class="scroll"><div class="expired-box">
+        <div class="ico" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8A6400" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h2>이 초대 링크는 만료됐어요</h2>
+        <p>'${esc(f.name)}' 링크는 ${fmt(expiryDate(f))}까지 열 수 있었어요.<br>호스트에게 새 링크를 요청해 주세요.</p></div></div>`;
+      return;
+    }
+    const live = f.start <= now && now < f.end;
+    v.innerHTML = `${webbar()}
+      <div class="scroll">
+        <div class="card invite">
+          <span class="host"><span class="av c0" style="margin:0">지</span>${esc(f.host || '지수')}님이 초대했어요</span>
+          <h2>${esc(f.name)}</h2>
+          <p class="when">${range(f.start, f.end)}</p>
+          <div style="margin-bottom:16px">${live ? '<span class="pill live">지금 진행 중</span>' : f.start > now ? '<span class="pill soon">예정</span>' : '<span class="pill done">기간 종료</span>'}</div>
+          <div class="who">${avatars(f.members)}${f.members}명 참여 중</div>
+        </div>
+        <div class="card rows" style="margin-top:12px">
+          <div class="row"><span>호스트</span><span>${esc(f.host || '지수')}</span></div>
+          <div class="row"><span>사진이 모이는 기간</span><span>${fmtDuration(f.end - f.start)}</span></div>
+          ${S.joinState === 'password' ? '<div class="row"><span>입장 비밀번호</span><span>필요해요</span></div>' : ''}
+        </div>
+        <div class="card web-note">${ICON.globe}<span>앱 설치나 가입 없이 웹에서 바로 참여해요. 입장하면 내 사진 공유 옵션을 정할 수 있어요.</span></div>
+      </div>
+      <div class="bottom">
+        <button class="btn" type="button" data-act="enter">입장하기</button>
+        <button class="btn ghost" type="button" data-act="decline">그만두기</button>
+      </div>`;
+  }
+  function passwordSheet(err = '') {
+    openSheet(`<h3>입장 비밀번호</h3><p>호스트에게 받은 숫자 4자리를 입력해 주세요.</p>
+      <input class="pin" id="pinIn" inputmode="numeric" maxlength="4" placeholder="••••" aria-label="비밀번호 4자리">
+      <p class="note" style="min-height:18px;margin:8px 0 14px;${err ? 'color:#8A6400' : ''}">${err || '시연에서는 아무 숫자 4자리나 들어가요'}</p>
+      <button class="btn" type="button" data-act="pin-ok">확인</button>`);
+    $('#pinIn').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
+  }
+
+  /* =================== 내 공유 옵션 (웹) =================== */
+  function renderOptions() {
+    const f = S.current, g = S.guest;
+    $('#v-options').innerHTML = `${webbar()}
+      <header class="appbar"><button class="icon-btn" type="button" aria-label="뒤로" data-nav="join">${ICON.back}</button><h1>내 공유 옵션</h1><span class="step">1 / 2</span></header>
+      <div class="scroll">
+        <p class="lead" style="margin-top:0">내 사진은 어떻게<br>공유할까요?</p>
+        <p class="lead-sub">이 옵션은 내 사진에만 적용돼요. 다른 참여자의 설정은 바꿀 수 없어요.</p>
+        <section><div class="sec-head"><h2>내 사진 공유 옵션</h2><span class="meta">${Object.values(g.opts).filter(Boolean).length}개 적용</span></div>
+          <div class="card options">${optRows(g.opts, 'guest')}</div>
+          <p class="note">웹에서는 사진을 직접 골라 올려요. 촬영 시간을 확인해서 기간 밖 사진은 자동으로 빠져요.</p>
+        </section>
+        <section><div class="card">
+          <div class="lock-head">${ICON.lock}호스트가 정한 설정이라 바꿀 수 없어요</div>
+          <div class="rows">
+            <div class="row"><span>이벤트 기간</span><span>${range(f.start, f.end)}</span></div>
+            <div class="row"><span>링크 유효기간</span><span>${fmt(expiryDate(f))}까지</span></div>
+          </div></div></section>
+      </div>
+      <div class="bottom"><button class="btn" type="button" data-nav="face" data-face-return="folder">다음</button></div>`;
+  }
+
+  /* =================== 얼굴 등록 (선택) =================== */
+  function renderFace() {
+    const fromFlow = S.faceReturn === 'folder' && S.role === 'guest' && S.route === 'face' && S.faceFlow;
+    const done = S.faceStatus === 'done', scanning = S.faceStatus === 'scanning';
+    const top = S.role === 'guest' ? webbar() : '';
+    const backTo = S.faceReturn === 'my' ? 'my' : (fromFlow ? 'options' : 'folder');
+    $('#v-face').innerHTML = `${top}
+      <header class="appbar"><button class="icon-btn" type="button" aria-label="뒤로" data-nav="${backTo}">${ICON.back}</button><h1>얼굴 등록</h1>${fromFlow ? '<span class="step">2 / 2 · 선택</span>' : '<span class="step">선택</span>'}</header>
+      <div class="scroll">
+        <div class="face-frame ${scanning ? 'scanning' : ''} ${done ? 'done' : ''}" aria-hidden="true">${done ? ICON.check : ICON.face}</div>
+        <div class="face-copy">
+          ${done ? `<h2>얼굴을 등록했어요</h2><p>이제 공유폴더에서 '내가 나온 사진'을 골라 볼 수 있어요.</p>`
+            : scanning ? `<h2>얼굴을 확인하는 중</h2><p>원 안에 얼굴을 맞추고 잠시 기다려 주세요.</p>`
+            : `<h2>내가 나온 사진을 찾아드릴까요?</h2><p>얼굴을 한 번 등록하면 AI가 폴더 안에서<br>내가 나온 사진만 골라 보여줘요.</p><p style="font-size:12.5px;color:var(--ink-3)">얼굴 정보는 내 사진을 찾는 데만 써요.</p>`}
+        </div>
+      </div>
+      <div class="bottom">
+        ${done ? `<button class="btn" type="button" data-act="face-finish">${fromFlow ? '시작하기' : '돌아가기'}</button>`
+          : `<button class="btn" type="button" data-act="face-scan" ${scanning ? 'disabled' : ''}>${scanning ? '<span class="spinner"></span>확인하는 중' : '얼굴 등록하기'}</button>
+             <button class="btn ghost" type="button" data-act="face-skip" ${scanning ? 'disabled' : ''}>${fromFlow ? '건너뛰고 시작하기' : '나중에 하기'}</button>`}
+      </div>`;
+  }
+  function faceSkipSheet() {
+    openSheet(`<h3>얼굴 등록 없이 시작할까요?</h3>
+      <p>등록하지 않으면 '내가 나온 사진'을 골라 볼 수 없어요. 전체 사진과 장소별 사진은 그대로 볼 수 있고, 얼굴은 폴더 안에서 언제든 등록할 수 있어요.</p>
+      <button class="btn" type="button" data-act="face-skip-ok">등록 없이 시작하기</button>
+      <button class="btn ghost" type="button" data-act="close-sheet">얼굴 등록하기</button>`);
+  }
+
+  /* =================== 공유폴더 =================== */
+  const hasFace = () => S.role === 'host' ? S.hostFace : S.guest.face;
+  function groupCard(g, wide) {
+    const total = S.groups.length;
+    return `<button class="group" type="button" data-act="open-group" data-id="${g.id}" aria-label="${PLACES[g.place]} ${g.time} 묶음, 사진 ${g.n}장">
+      <span class="ph" style="display:block">${photo(g.id * 31 + g.best, g.place)}<span class="badge">BEST</span>${g.n > 1 ? `<span class="more">+${g.n - 1}</span>` : ''}</span>
+      <small>${PLACES[g.place]} · ${g.time}</small></button>`;
+  }
+  function renderFolder() {
+    const f = S.current, now = Date.now(), host = S.role === 'host', g = S.guest;
+    const total = S.groups.reduce((a, x) => a + x.n, 0);
+    const meGroups = S.groups.filter(x => x.me);
+    let statusTxt, pill;
+    if (S.phase === 'ended') { pill = '<span class="pill done">기간 종료</span>'; statusTxt = `AI 정리 완료 · 사진 ${total}장, 묶음 ${S.groups.length}개`; }
+    else if (S.phase === 'live') { pill = '<span class="pill live">모으는 중</span>'; statusTxt = `사진 ${total}장 · ${f.end > now ? `${rel(f.end - now)} 뒤 마감` : '곧 마감'}`; }
+    else { pill = f.start > now ? '<span class="pill soon">예정</span>' : '<span class="pill live">모으는 중</span>'; statusTxt = f.start > now ? `${rel(f.start - now)} 뒤 시작` : '아직 사진 0장'; }
+
+    // 업로드 카드: 호스트=앱 자동 업로드(연출), 참여자=웹 직접 올리기 (b안)
+    let upload;
+    if (host) {
+      const ex = excluded(f.hostOpts || {});
+      upload = S.phase === 'ended'
+        ? `<div class="card upload"><span class="u-ico">${ICON.sync}</span><span class="u-body"><b>내 사진 32장을 공유했어요</b><small>기간이 끝나 자동 업로드를 멈췄어요.</small></span></div>`
+        : `<div class="card upload"><span class="u-ico live">${ICON.sync}</span><span class="u-body"><b>자동 업로드 켜짐</b><small>${S.phase === 'empty' ? '기간 중 찍은 내 사진이 자동으로 올라가요' : '내 사진 32장 올라감'}${ex.length ? `, ${ex.join('·')}은 빼요` : ''}</small></span></div>`;
+    } else {
+      const ex = excluded(g.opts);
+      if (g.upload === 'uploading') upload = `<div class="card upload"><span class="u-ico">${ICON.upload}</span><span class="u-body"><b>사진을 올리는 중</b><small>기간 밖 사진과 ${ex.join('·') || '제외 옵션'} 사진을 거르고 있어요</small><div class="progress"><i id="upBar"></i></div></span></div>`;
+      else if (g.upload === 'done') upload = `<div class="card upload"><span class="u-ico">${ICON.check.replace('64', '20').replace('64', '20')}</span><span class="u-body"><b>내 사진 ${g.uploaded}장을 올렸어요</b><small>기간 밖 사진 4장${ex.length ? `, ${ex.join('·')} 3장` : ''}은 뺐어요</small></span><button class="btn small ghost" type="button" data-act="upload">더 올리기</button></div>`;
+      else upload = `<div class="card upload"><span class="u-ico">${ICON.upload}</span><span class="u-body"><b>이 기간에 찍은 사진 올리기</b><small>사진을 여러 장 골라도 기간 안 사진만 올라가요</small></span><button class="btn small" type="button" data-act="upload">고르기</button></div>`;
+    }
+
+    const filters = [['all', `전체 ${S.groups.length}`], ['me', '내가 나온 사진'], ['place', '장소별']];
+    let body = '';
+    if (S.phase === 'empty') {
+      body = `<div class="empty-note" style="flex-direction:column;text-align:center;padding:36px 20px"><span class="ph" aria-hidden="true">${ICON.folder}</span>
+        <span><b>아직 이 시간대에 찍은 사진이 없어요</b>${f.start > now ? '이벤트가 시작되면 찍은 사진이 여기에 모여요.' : '사진을 찍거나 직접 올리면 여기에 모여요.'}</span></div>`;
+    } else {
+      const note = S.phase === 'live' ? `<div class="ai-note">${ICON.spark}<span>사진이 모이는 중이라 묶음과 베스트컷이 바뀔 수 있어요. 기간이 끝나면 정리가 완료돼요.</span></div>` : '';
+      if (S.filter === 'all') body = note + `<div class="groups">${S.groups.map(x => groupCard(x)).join('')}</div>`;
+      else if (S.filter === 'me') {
+        body = !hasFace()
+          ? `<div class="card" style="padding:22px 18px;text-align:center"><div style="color:var(--main);margin-bottom:8px">${ICON.face}</div>
+              <b style="font-size:16px">얼굴을 등록하면 볼 수 있어요</b>
+              <p class="note" style="margin:6px 0 16px">등록하지 않으면 내가 나온 사진을 골라낼 수 없어요.</p>
+              <button class="btn small" type="button" data-act="face-from" data-from="folder">얼굴 등록하기</button></div>`
+          : note + `<p class="note" style="margin:0 0 12px">내가 나온 묶음 ${meGroups.length}개를 찾았어요.</p><div class="groups">${meGroups.map(x => groupCard(x)).join('')}</div>`;
+      } else {
+        body = note + PLACES.map((p, pi) => { const gs = S.groups.filter(x => x.place === pi); return `<section style="margin-bottom:20px"><div class="sec-head"><h2>${p}</h2><span class="meta">묶음 ${gs.length}개</span></div><div class="place-row">${gs.map(x => groupCard(x)).join('')}</div></section>`; }).join('');
+      }
+    }
+
+    $('#v-folder').innerHTML = `${host ? '' : webbar()}
+      <header class="appbar">
+        ${host ? `<button class="icon-btn" type="button" aria-label="홈으로" data-nav="home">${ICON.back}</button>` : '<span style="width:8px"></span>'}
+        <h1>${esc(f.name)}</h1>
+        ${host ? `<button class="icon-btn" type="button" aria-label="초대하기" data-nav="qr">${ICON.share}</button>` : ''}
+      </header>
+      <div class="scroll" style="padding:0 0 40px">
+        <div class="f-head">
+          <div class="status">${pill}<span>${statusTxt}</span><span style="margin-left:auto" class="avatars">${avatars(f.members)}</span></div>
+          ${upload}
+        </div>
+        ${S.phase === 'empty' ? '' : `<div class="filters" role="tablist">${filters.map(([k, l]) => `<button class="chip" type="button" role="tab" aria-selected="${S.filter === k}" aria-pressed="${S.filter === k}" data-act="filter" data-k="${k}">${l}</button>`).join('')}</div>`}
+        <div style="padding:0 20px">${body}</div>
+      </div>`;
+  }
+  function simulateUpload() {
+    S.guest.upload = 'uploading'; renderFolder();
+    let p = 0; const t = setInterval(() => {
+      p += 7; const bar = $('#upBar'); if (bar) bar.style.width = Math.min(p, 100) + '%';
+      if (p >= 100) { clearInterval(t); S.guest.upload = 'done'; S.guest.uploaded += 18; renderFolder(); toast(`사진 18장을 올렸어요`); }
+    }, 90);
+  }
+
+  /* =================== 묶음 상세 =================== */
+  function renderGroup() {
+    const g = S.groups[S.groupId] || S.groups[0], sel = Math.min(S.sel, g.n - 1), isBest = sel === g.best;
+    $('#v-group').innerHTML = `${S.role === 'guest' ? webbar() : ''}
+      <header class="appbar"><button class="icon-btn" type="button" aria-label="공유폴더로" data-nav="folder">${ICON.back}</button><h1>${PLACES[g.place]} · ${g.time}</h1><span class="step">${sel + 1} / ${g.n}</span></header>
+      <div class="scroll" style="padding:0 0 140px">
+        <div class="viewer">${photo(g.id * 31 + sel, g.place)}${isBest ? '<span class="badge" style="left:12px;top:12px;font-size:12px">AI 베스트컷</span>' : ''}</div>
+        ${isBest ? `<div class="reasons">${g.reasons.map(r => `<span class="reason">${r}</span>`).join('')}</div>` : `<p class="note" style="padding:12px 20px 0;margin:0">같은 장면의 다른 컷이에요. 이 컷이 더 마음에 들면 베스트컷으로 바꿀 수 있어요.</p>`}
+        <div class="strip" role="group" aria-label="묶음 사진 ${g.n}장">
+          ${Array.from({ length: g.n }, (_, i) => `<button class="thumb-btn" type="button" data-act="sel" data-i="${i}" aria-pressed="${i === sel}" aria-label="${i + 1}번째 사진${i === g.best ? ', 베스트컷' : ''}">${photo(g.id * 31 + i, g.place)}${i === g.best ? '<span class="star">★</span>' : ''}</button>`).join('')}
+        </div>
+      </div>
+      <div class="bottom">
+        <div class="row-btns">
+          ${isBest ? '' : '<button class="btn ghost" type="button" data-act="make-best">베스트컷으로 바꾸기</button>'}
+          <button class="btn" type="button" data-act="save-one">이 사진 저장</button>
+        </div>
+        <button class="link-btn" type="button" data-act="save-all">묶음 ${g.n}장 모두 저장</button>
+      </div>`;
+  }
+
+  /* =================== 라우팅 =================== */
+  const RENDER = { home: renderHome, folders: renderFolders, my: renderMy, create: () => {}, qr: renderQR, join: renderJoin, options: renderOptions, face: renderFace, folder: renderFolder, group: renderGroup };
+  const TAB_ROUTES = ['home', 'folders', 'my'];
+  function nav(route) {
+    if (location.hash.slice(1) === route) show(route); else location.hash = route;
+  }
+  function show(route) {
+    if (!RENDER[route]) route = 'home';
+    const prev = S.route; S.route = route;
+    closeSheet();
+    if (route === 'create' && prev !== 'create') createDemo('loading', 600);
+    if (['join', 'options', 'face'].includes(route) && prev !== 'face' && route !== 'face') S.role = 'guest';
+    RENDER[route]();
+    $$('.view').forEach(v => v.classList.toggle('active', v.dataset.route === route));
+    $('#tabbar').hidden = !TAB_ROUTES.includes(route);
+    $$('#tabbar .tab').forEach(t => t.toggleAttribute('aria-current', t.dataset.nav === route) || t.removeAttribute('aria-current'));
+    $$('#tabbar .tab').forEach(t => t.dataset.nav === route ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current'));
+    $('#jump').value = route;
+    renderDemo();
+    const sc = $(`#v-${route} .scroll`); if (sc && route !== 'create') sc.scrollTop = 0;
+  }
+  window.addEventListener('hashchange', () => show(location.hash.slice(1) || 'home'));
+  $('#jump').addEventListener('change', e => {
+    const r = e.target.value;
+    if (r === 'face') { S.faceFlow = S.role === 'guest'; S.faceReturn = 'folder'; S.faceStatus = 'idle'; }
+    nav(r);
+  });
+
+  /* =================== 시연 상태 버튼 =================== */
+  const DEMO = {
+    home: [['상태', [['loading', '로딩'], ['new', '처음 사용'], ['existing', '기존 사용자']], () => S.homeMode, k => homeDemo(k)]],
+    folders: [['상태', [['new', '비어 있음'], ['existing', '폴더 있음']], () => S.homeMode === 'new' ? 'new' : 'existing', k => { S.homeMode = k; renderFolders(); }]],
+    create: [['상태', [['loading', '로딩'], ['empty', '비어 있음'], ['filled', '입력 완료'], ['expired', '기간 지남']], () => createMode, k => createDemo(k)]],
+    qr: [['비밀번호', [['off', '없음'], ['on', '있음']], () => S.current.password ? 'on' : 'off', k => { S.current.password = k === 'on' ? '0423' : ''; renderQR(); }]],
+    join: [['상태', [['normal', '기본'], ['password', '비밀번호'], ['expired', '만료된 링크']], () => S.joinState, k => { S.joinState = k; renderJoin(); }]],
+    face: [['상태', [['idle', '등록 전'], ['done', '등록 완료']], () => S.faceStatus === 'done' ? 'done' : 'idle', k => { S.faceStatus = k; renderFace(); }]],
+    folder: [
+      ['보는 사람', [['host', '호스트 (앱)'], ['guest', '참여자 (웹)']], () => S.role, k => { S.role = k; renderFolder(); }],
+      ['단계', [['empty', '사진 없음'], ['live', '모으는 중'], ['ended', '정리 완료']], () => S.phase, k => { S.phase = k; renderFolder(); }],
+    ],
+  };
+  function renderDemo() {
+    const sets = DEMO[S.route] || [];
+    $('#demoStates').innerHTML = sets.map(([label, items, get], gi) => `<span style="display:inline-flex;align-items:center;gap:6px">${label}<span class="demo-group" role="group" aria-label="${label}">${items.map(([k, l]) => `<button type="button" data-demo="${gi}" data-k="${k}" aria-pressed="${get() === k}">${l}</button>`).join('')}</span></span>`).join('');
+  }
+  $('#demoStates').addEventListener('click', e => {
+    const b = e.target.closest('[data-demo]'); if (!b) return;
+    DEMO[S.route][+b.dataset.demo][3](b.dataset.k); renderDemo();
+  });
+  let homeT;
+  function homeDemo(k) {
+    clearTimeout(homeT);
+    if (k === 'loading') { const back = S.homeMode === 'loading' ? 'existing' : S.homeMode; S.homeMode = 'loading'; renderHome(); homeT = setTimeout(() => { S.homeMode = back; renderHome(); renderDemo(); }, 1400); }
+    else { S.homeMode = k; if (k === 'existing' && !S.folders.length) S.folders = sampleFolders(); renderHome(); }
+    renderDemo();
+  }
+
+  /* =================== 클릭 처리 =================== */
+  phone.addEventListener('click', e => {
+    const n = e.target.closest('[data-nav]');
+    if (n) {
+      if (n.dataset.nav === 'face') { S.faceReturn = n.dataset.faceReturn || 'folder'; S.faceFlow = S.route === 'options'; S.faceStatus = S.guest.face ? 'done' : 'idle'; }
+      nav(n.dataset.nav); return;
+    }
+    const t = e.target.closest('[data-toast]'); if (t) { toast(t.dataset.toast); return; }
+    const a = e.target.closest('[data-act]'); if (!a) return;
+    const act = a.dataset.act;
+    switch (act) {
+      case 'toggle-opt': {
+        const k = a.dataset.key;
+        if (a.dataset.scope === 'host') { hostOptsDraft[k] = !hostOptsDraft[k]; renderCreate(); }
+        else { S.guest.opts[k] = !S.guest.opts[k]; renderOptions(); }
+        break;
+      }
+      case 'open-folder': {
+        const f = S.folders[+a.dataset.i];
+        S.current = { expiryDays: 7, password: '', hostOpts: { blur: true, screenshot: true }, host: '지수', ...f };
+        S.role = 'host'; S.filter = 'all'; S.groups = makeGroups();
+        S.phase = f.photos === 0 ? 'empty' : f.end <= Date.now() ? 'ended' : 'live';
+        nav('folder'); break;
+      }
+      case 'folder-tab': folderTab = a.dataset.k; renderFolders(); break;
+      case 'share': shareSheet(); break;
+      case 'share-to': {
+        const app = a.dataset.app;
+        if (app === '더보기' && navigator.share) {
+          navigator.share({ title: S.current.name, text: `${S.current.name}에 초대해요`, url: location.href.split('#')[0] + '#join' }).catch(() => {});
+        } else toast(app === 'QR 이미지 저장' ? 'QR 이미지를 저장했어요 (시연)' : `${app}(으)로 초대 링크를 보냈어요 (시연)`);
+        closeSheet(); break;
+      }
+      case 'copy':
+        try { navigator.clipboard && navigator.clipboard.writeText(`https://phou.app/e/${S.current.code}`); } catch (_) {}
+        toast('링크를 복사했어요'); closeSheet(); break;
+      case 'as-guest':
+        S.role = 'guest'; S.joinState = S.current.password ? 'password' : 'normal';
+        S.guest = { opts: { selfie: false, blur: true, screenshot: true }, face: false, upload: 'idle', uploaded: 0 };
+        nav('join'); break;
+      case 'enter':
+        if (S.joinState === 'password') passwordSheet(); else nav('options'); break;
+      case 'decline': toast('창을 닫아도 돼요. 링크로 언제든 다시 들어올 수 있어요'); break;
+      case 'pin-ok': {
+        const v = $('#pinIn').value;
+        if (!/^\d{4}$/.test(v)) { passwordSheet('숫자 4자리를 모두 입력해 주세요'); break; }
+        closeSheet(); nav('options'); break;
+      }
+      case 'close-sheet': closeSheet(); break;
+      case 'face-scan':
+        S.faceStatus = 'scanning'; renderFace();
+        setTimeout(() => { S.faceStatus = 'done'; if (S.role === 'host') S.hostFace = true; else S.guest.face = true; renderFace(); renderDemo(); }, 1600);
+        break;
+      case 'face-skip': if (S.faceFlow) faceSkipSheet(); else nav(S.faceReturn); break;
+      case 'face-skip-ok': closeSheet(); S.phase = 'live'; S.filter = 'all'; nav('folder'); toast(`'${S.current.name}'에 참여했어요`); break;
+      case 'face-finish':
+        if (S.faceFlow) { S.phase = 'live'; S.filter = 'all'; nav('folder'); toast(`'${S.current.name}'에 참여했어요`); }
+        else { if (S.faceReturn === 'folder') S.filter = 'me'; nav(S.faceReturn); }
+        break;
+      case 'face-from':
+        S.faceReturn = a.dataset.from; S.faceFlow = false; S.faceStatus = hasFace() && a.dataset.from !== 'my' ? 'done' : (a.dataset.from === 'my' && S.hostFace ? 'done' : 'idle');
+        if (a.dataset.from === 'my') S.role = 'host';
+        nav('face'); break;
+      case 'upload': simulateUpload(); break;
+      case 'filter': S.filter = a.dataset.k; renderFolder(); break;
+      case 'open-group': S.groupId = +a.dataset.id; S.sel = S.groups[S.groupId].best; nav('group'); break;
+      case 'sel': S.sel = +a.dataset.i; renderGroup(); break;
+      case 'make-best': S.groups[S.groupId].best = S.sel; renderGroup(); toast('베스트컷을 바꿨어요'); break;
+      case 'save-one': toast('원본 화질로 저장했어요'); break;
+      case 'save-all': toast(`${S.groups[S.groupId].n}장을 원본 화질로 저장했어요`); break;
+    }
+  });
+
+  setInterval(() => { if (S.route === 'home' && S.homeMode !== 'loading') renderHome(); if (S.route === 'create') renderCreate(); }, 60000);
+
+  /* 시작 */
+  renderCreate();
+  const startRoute = location.hash.slice(1);
+  if (!startRoute || startRoute === 'home') { S.homeMode = 'loading'; show('home'); homeT = setTimeout(() => { S.homeMode = 'existing'; renderHome(); renderDemo(); }, 1400); }
+  else show(startRoute);
+})();
+</script>
+</body>
+</html>
